@@ -8,7 +8,9 @@ Open `index.html` or serve this directory with a static web server. No build, ex
 
 ## Design
 
-Three cinematic chapters move from the Karoo landscape, through the deli counter, to a visit invitation. Desktop uses pinned scenes, scroll-linked image movement and rising transitions. Mobile and reduced-motion preferences use normal document flow. This is a photo-motion adaptation of the supplied pear.no reference, not a film-scrubbing reproduction; matching its moving footage would require appropriate video assets.
+The landscape opening leads into a connected photo journey: deli counter, quiet window table, then preserves to take along. Staggered photographs, short captions and a winding road motif carry the reader into the visit invitation. The approach follows the connected-gallery behaviour of the Adorable Bekkies Academy reference, with original Karoo styling and the padstal’s own photos.
+
+All sections use native document flow with no pinned holds. One requestAnimationFrame batches scroll reads and writes; small image drift follows scroll directly, while the route line remembers the furthest point reached. Photographs reveal once, keyboard focus reveals content immediately, and live reduced-motion changes show the complete story without drift. Mobile retains alternating photographs and the connecting path. A native dialog provides enlarged photos, previous/next controls, arrow keys, Escape and focus return. No school images or artwork were copied.
 
 ## Content and sources
 

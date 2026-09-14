@@ -1,46 +1,118 @@
 (() => {
-  const body=document.body,story=document.getElementById('story'),header=document.getElementById('header');
-  const scenes=[...document.querySelectorAll('.scene')];
-  const nav=document.getElementById('navigation'),toggle=document.querySelector('.menu-toggle');
-  const media=matchMedia('(min-width: 901px) and (prefers-reduced-motion: no-preference)');
-  const progress=document.querySelector('.reading-progress span');
-  let raf=0,current=0,goal=0;
-  const clamp=(n,min=0,max=1)=>Math.min(max,Math.max(min,n));
-  function setMenu(open){toggle.setAttribute('aria-expanded',String(open));nav.classList.toggle('open',open);toggle.querySelector('span').textContent=open?'−':'+';}
-  toggle.addEventListener('click',()=>setMenu(toggle.getAttribute('aria-expanded')!=='true'));
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){setMenu(false);toggle.blur();}});
-  function render(){
-    current+=(goal-current)*.16;if(Math.abs(goal-current)<.0003)current=goal;
-    let selected=0;
-    scenes.forEach((scene,i)=>{
-      const local=current-i;
-      const opacity=i===0?1:clamp(local/.2+1);
-      const showing=i===0||opacity>0;
-      scene.classList.toggle('active',showing);
-      scene.style.opacity=String(opacity);
-      scene.style.clipPath=i===0?'none':`inset(${(1-opacity)*100}% 0 0 0)`;
-      const img=scene.querySelector('.scene-image');
-      img.style.transform=`scale(${1.02+clamp(local,0,1)*.07}) translateY(${-clamp(local,0,1)*1.5}%)`;
-      if(current>=i-.1)selected=i;
+  const header = document.getElementById('header');
+  const nav = document.getElementById('navigation');
+  const links = [...nav.querySelectorAll('a')];
+  const toggle = document.querySelector('.menu-toggle');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const desktop = matchMedia('(min-width: 901px)');
+  const progress = document.querySelector('.reading-progress span');
+  const scenes = [...document.querySelectorAll('.scene')];
+  const backgroundImages = [...document.querySelectorAll('.scene-image')];
+  const journey = document.querySelector('.road-journey');
+  const stops = [...document.querySelectorAll('.journey-stop')];
+  const clamp = n => Math.min(1, Math.max(0, n));
+  let scheduled = false;
+  let roadProgress = 0;
+
+  function setMenu(open) {
+    toggle.setAttribute('aria-expanded', String(open));
+    nav.classList.toggle('open', open);
+    toggle.querySelector('span').textContent = open ? '−' : '+';
+  }
+  toggle.addEventListener('click', () => setMenu(toggle.getAttribute('aria-expanded') !== 'true'));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+      setMenu(false);
+      toggle.focus();
+    }
+  });
+  document.querySelectorAll('a[href^="#"]').forEach(link => link.addEventListener('click', () => setMenu(false)));
+
+  // Visible content is the default. Only unseen, below-screen stops get an entrance.
+  if (!reduced.matches) stops.forEach(stop => {
+    if (stop.getBoundingClientRect().top > innerHeight) stop.classList.add('reveal-pending');
+  });
+  document.addEventListener('focusin', event => {
+    event.target.closest('.reveal-pending')?.classList.remove('reveal-pending');
+  });
+
+  function render() {
+    scheduled = false;
+    const viewport = innerHeight;
+    const scroll = scrollY;
+    const distance = document.documentElement.scrollHeight - viewport;
+    const rects = scenes.map(scene => scene.getBoundingClientRect());
+    const frames = backgroundImages.map(image => image.parentElement.getBoundingClientRect());
+    const journeyRect = journey.getBoundingClientRect();
+    const stopRects = stops.map(stop => stop.getBoundingClientRect());
+    let active = 0;
+    rects.forEach((rect, index) => { if (rect.top <= 100) active = index; });
+    links.forEach(link => {
+      const chapter = link.hash === '#visit' ? 2 : link.hash === '#stop' ? 0 : 1;
+      if (chapter === active && link.hash !== '#deli') link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
     });
-    scenes.forEach((scene,i)=>{scene.inert=i!==selected;scene.setAttribute('aria-hidden',String(i!==selected));});
-    header.classList.toggle('light',selected===2);header.classList.toggle('solid',selected===1);
-    document.querySelectorAll('nav a').forEach(a=>{const idx=a.hash==='#visit'?2:a.hash==='#stop'?0:1;if(idx===selected)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current');});
-    progress.style.width=`${clamp(current/2.7)*100}%`;
-    raf=current!==goal?requestAnimationFrame(render):0;
+    header.classList.toggle('light', desktop.matches && active === 2);
+    header.classList.toggle('solid', desktop.matches && scroll > 24 && active !== 2);
+    progress.style.transform = `scaleX(${distance > 0 ? clamp(scroll / distance) : 0})`;
+
+    roadProgress = Math.max(roadProgress, clamp((viewport * .87 - journeyRect.top) / journeyRect.height));
+    journey.style.setProperty('--road-progress', reduced.matches ? 1 : roadProgress.toFixed(4));
+    stopRects.forEach((rect, index) => {
+      const stop = stops[index];
+      if (reduced.matches || rect.top < viewport * .94) stop.classList.remove('reveal-pending');
+      if (rect.top > viewport || rect.bottom < 0) return;
+      const drift = reduced.matches ? 0 : (clamp((viewport - rect.top) / (viewport + rect.height)) - .5) * (desktop.matches ? 22 : 10) * (index % 2 ? -1 : 1);
+      stop.style.setProperty('--drift', `${drift.toFixed(2)}px`);
+    });
+    backgroundImages.forEach((image, index) => {
+      const frame = frames[index];
+      if (reduced.matches || !desktop.matches) { image.style.removeProperty('transform'); return; }
+      if (frame.bottom <= 0 || frame.top >= viewport) return;
+      const shift = (clamp((viewport - frame.top) / (viewport + frame.height)) - .5) * 30;
+      image.style.transform = `translate3d(0, ${shift.toFixed(2)}px, 0) scale(1.06)`;
+    });
   }
-  function update(){if(!media.matches)return;goal=clamp((scrollY-story.offsetTop)/Math.max(1,story.offsetHeight-innerHeight))*2.7;if(!raf)raf=requestAnimationFrame(render);}
-  function configure(){
-    body.classList.toggle('motion',media.matches);if(raf)cancelAnimationFrame(raf);raf=0;
-    scenes.forEach(s=>{s.removeAttribute('style');s.classList.remove('active');s.inert=false;s.removeAttribute('aria-hidden');s.querySelector('.scene-image').removeAttribute('style');});
-    header.classList.remove('light','solid');current=goal=0;if(media.matches)update();
+  function schedule() {
+    if (!scheduled) { scheduled = true; requestAnimationFrame(render); }
   }
-  function goTo(hash){
-    if(!document.querySelector(hash))return;
-    if(media.matches){const idx=hash==='#visit'?2:hash==='#stop'||hash==='#main'?0:1;const target=story.offsetTop+(idx/2.7)*(story.offsetHeight-innerHeight);scrollTo({top:target,behavior:'smooth'});}
-    else document.querySelector(hash).scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+  addEventListener('scroll', schedule, { passive: true });
+  addEventListener('resize', schedule);
+  addEventListener('load', schedule);
+  desktop.addEventListener('change', () => { setMenu(false); schedule(); });
+  reduced.addEventListener('change', () => {
+    stops.forEach(stop => { stop.classList.remove('reveal-pending'); stop.style.setProperty('--drift', '0px'); });
+    schedule();
+  });
+  new ResizeObserver(schedule).observe(journey);
+
+  const viewer = document.querySelector('.photo-viewer');
+  const viewerImage = viewer.querySelector('.viewer-image');
+  const viewerCaption = viewer.querySelector('.viewer-caption');
+  const photoButtons = [...document.querySelectorAll('[data-photo]')];
+  let photoIndex = 0;
+  let opener;
+  function showPhoto(index) {
+    photoIndex = (index + photoButtons.length) % photoButtons.length;
+    const photo = photoButtons[photoIndex].querySelector('img');
+    viewerImage.src = photo.src;
+    viewerImage.alt = photo.alt;
+    viewerCaption.textContent = `${photoIndex + 1} / ${photoButtons.length} · ${photo.alt}`;
   }
-  document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();setMenu(false);history.replaceState(null,'',a.hash);goTo(a.hash);}));
-  addEventListener('scroll',update,{passive:true});addEventListener('resize',update);media.addEventListener('change',configure);configure();
-  if(location.hash)requestAnimationFrame(()=>goTo(location.hash));
+  photoButtons.forEach((button, index) => button.addEventListener('click', () => {
+    opener = button;
+    showPhoto(index);
+    viewer.showModal();
+  }));
+  viewer.querySelector('.viewer-prev').addEventListener('click', () => showPhoto(photoIndex - 1));
+  viewer.querySelector('.viewer-next').addEventListener('click', () => showPhoto(photoIndex + 1));
+  viewer.addEventListener('keydown', event => {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault();
+      showPhoto(photoIndex + (event.key === 'ArrowRight' ? 1 : -1));
+    }
+  });
+  viewer.addEventListener('click', event => { if (event.target === viewer) viewer.close(); });
+  viewer.addEventListener('close', () => opener?.focus({ preventScroll: true }));
+  render();
 })();
