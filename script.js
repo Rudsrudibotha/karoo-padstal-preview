@@ -107,6 +107,16 @@
   viewer.querySelector('.viewer-prev').addEventListener('click', () => showPhoto(photoIndex - 1));
   viewer.querySelector('.viewer-next').addEventListener('click', () => showPhoto(photoIndex + 1));
   viewer.addEventListener('keydown', event => {
+    if (event.key === 'Tab') {
+      const buttons = [...viewer.querySelectorAll('button')];
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus();
+      }
+    }
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault();
       showPhoto(photoIndex + (event.key === 'ArrowRight' ? 1 : -1));
